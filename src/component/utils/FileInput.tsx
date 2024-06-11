@@ -8,17 +8,17 @@ function FileInput() {
     const [isLoading, setIsLoading] = useState<boolean>(false);
 
     // Function to perform Naive Bayes classification
-    const naiveBayesClassification = (excelData: any[][], selectedFeatures: number[]): number[] => {
-        // TODO: Implement Naive Bayes classification algorithm here
-        // 1. Hitung probabilitas prior (probabilitas masing-masing kelas)
-        // 2. Hitung probabilitas likelihood (probabilitas masing-masing fitur berdasarkan kelas)
-        // 3. Hitung probabilitas posterior (probabilitas kelas berdasarkan masing-masing fitur)
-        // 4. Lakukan klasifikasi berdasarkan probabilitas posterior terbesar
+    // const naiveBayesClassification = (excelData: any[][], selectedFeatures: number[]): number[] => {
+    //     // TODO: Implement Naive Bayes classification algorithm here
+    //     // 1. Hitung probabilitas prior (probabilitas masing-masing kelas)
+    //     // 2. Hitung probabilitas likelihood (probabilitas masing-masing fitur berdasarkan kelas)
+    //     // 3. Hitung probabilitas posterior (probabilitas kelas berdasarkan masing-masing fitur)
+    //     // 4. Lakukan klasifikasi berdasarkan probabilitas posterior terbesar
 
-        // Dummy implementation: return dummy classification result (0 for fake, 1 for genuine)
-        const classifications: number[] = Array.from({ length: excelData.length }, () => Math.round(Math.random()));
-        return classifications;
-    };
+    //     // Dummy implementation: return dummy classification result (0 for fake, 1 for genuine)
+    //     const classifications: number[] = Array.from({ length: excelData.length }, () => Math.round(Math.random()));
+    //     return classifications;
+    // };
 
 
 
