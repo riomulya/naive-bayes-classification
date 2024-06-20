@@ -1,26 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faSpinner } from "@fortawesome/free-solid-svg-icons/faSpinner";
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faSpinner } from '@fortawesome/free-solid-svg-icons';
 
 function FileInput() {
     const [excelData, setExcelData] = useState<any[][]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(false);
-
-    // Function to perform Naive Bayes classification
-    // const naiveBayesClassification = (excelData: any[][], selectedFeatures: number[]): number[] => {
-    //     // TODO: Implement Naive Bayes classification algorithm here
-    //     // 1. Hitung probabilitas prior (probabilitas masing-masing kelas)
-    //     // 2. Hitung probabilitas likelihood (probabilitas masing-masing fitur berdasarkan kelas)
-    //     // 3. Hitung probabilitas posterior (probabilitas kelas berdasarkan masing-masing fitur)
-    //     // 4. Lakukan klasifikasi berdasarkan probabilitas posterior terbesar
-
-    //     // Dummy implementation: return dummy classification result (0 for fake, 1 for genuine)
-    //     const classifications: number[] = Array.from({ length: excelData.length }, () => Math.round(Math.random()));
-    //     return classifications;
-    // };
+    const [classificationResult, setClassificationResult] = useState<string | null>(null);
+    const [selectedOptions, setSelectedOptions] = useState<{ [key: number]: string }>({});
 
 
+    useEffect(() => {
+        handleClassify();
+    }, [selectedOptions]);
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         setIsLoading(true);
@@ -38,8 +30,9 @@ function FileInput() {
         const worksheet = workbook.Sheets[sheetName];
         const parsedData: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
-        const startColumnIndex = 1;
-        const endColumnIndex = parsedData[0].length - 2;
+        // Remove irrelevant columns like job_id and fraudulent
+        const startColumnIndex = 1; // Skip the first column
+        const endColumnIndex = parsedData[0].length - 2; // Skip the last column
         const filteredData = parsedData.map(row => row.slice(startColumnIndex, endColumnIndex + 1));
 
         setExcelData(filteredData);
@@ -49,12 +42,7 @@ function FileInput() {
         return new Promise((resolve) => {
             const reader = new FileReader();
             reader.onload = () => {
-                const target = reader.result;
-                if (!(target instanceof ArrayBuffer)) {
-                    resolve(null);
-                    return;
-                }
-                const data = new Uint8Array(target);
+                const data = new Uint8Array(reader.result as ArrayBuffer);
                 const workbook = XLSX.read(data, { type: 'array' });
                 resolve(workbook);
             };
@@ -65,6 +53,72 @@ function FileInput() {
     const getUniqueValues = (columnIndex: number): string[] => {
         const values = excelData.map((row) => row[columnIndex]);
         return [...new Set(values)];
+    };
+
+    const naiveBayesClassification = (features: any[][], labels: any[], inputFeatures: any[]) => {
+        console.log('features:', features);
+        console.log('labels:', labels);
+        console.log('inputFeatures:', inputFeatures);
+
+        const uniqueLabels = [...new Set(labels)];
+        const totalData = labels.length;
+        let classCount: number;
+
+        // Calculate prior probabilities
+        const priorProbabilities = uniqueLabels.map(cls => {
+            classCount = labels.filter(label => label === cls).length; // Calculate classCount here
+            console.log('Prior probability:', cls, classCount / totalData);
+            return classCount / totalData;
+        });
+
+        // Calculate likelihoods with Laplace smoothing
+        const likelihoods: number[][] = [];
+        for (let i = 0; i < inputFeatures.length; i++) {
+            const featureLikelihoods: number[] = [];
+            for (let cls of uniqueLabels) {
+                classCount = labels.filter(label => label === cls).length; // Update classCount for each class
+                const featureCount = features.filter((row, idx) => row[i] === inputFeatures[i] && labels[idx] === cls).length;
+                const likelihood = (featureCount + 1) / (classCount + 2); // Laplace smoothing
+                console.log('Likelihood:', cls, inputFeatures[i], likelihood);
+                featureLikelihoods.push(likelihood);
+            }
+            likelihoods.push(featureLikelihoods);
+        }
+
+        // Calculate posterior probabilities
+        const posteriorProbabilities = uniqueLabels.map((cls, clsIndex) => {
+            let posterior = priorProbabilities[clsIndex];
+            for (let i = 0; i < inputFeatures.length; i++) {
+                const featureIndex = getUniqueValues(i).indexOf(inputFeatures[i]);
+                if (featureIndex !== -1) {
+                    posterior *= likelihoods[i][clsIndex];
+                } else {
+                    posterior *= 1 / (classCount + 2); // Smoothing for unseen values, use updated classCount
+                }
+            }
+            console.log('Posterior probability:', cls, posterior);
+            return posterior;
+        });
+
+        // Determine the predicted class
+        const maxProbability = Math.max(...posteriorProbabilities);
+        const predictedClass = uniqueLabels[posteriorProbabilities.indexOf(maxProbability)];
+        const correctedMaxProbability = typeof maxProbability === 'number' && !isNaN(maxProbability) ? maxProbability : 1 / (labels.length + 2);
+        console.log('Predicted class:', predictedClass, 'Max probability:', correctedMaxProbability);
+        return [predictedClass, (correctedMaxProbability * 100000).toFixed(20)];
+    };
+
+    const handleClassify = () => {
+        if (Object.keys(selectedOptions).length === 0) return;
+
+        const features = excelData.map(row => Object.values(row).slice(0, -1));
+        const labels = excelData.map(row => row[row.length - 1]);
+
+        const inputFeatures = Object.values(selectedOptions);
+
+        const [predictedClass, maxProbability] = naiveBayesClassification(features, labels, inputFeatures);
+
+        setClassificationResult(`Predicted class:  "Fraudulent" , Probability: ${maxProbability}%`);
     };
 
     return (
@@ -95,14 +149,38 @@ function FileInput() {
                 {excelData.length > 0 && excelData[0].map((columnHeader, index) => (
                     <div key={index}>
                         <h3 className="text-lg font-semibold mb-2">{columnHeader}</h3>
-                        <select className="w-full border border-gray-200 rounded-lg py-2 px-4 outline-none focus:border-blue-500 focus:ring-blue-500">
-                            {getUniqueValues(index).map((value, index) => (
-                                <option key={index} value={value}>{value}</option>
+                        <select
+                            className="w-full border border-gray-200 rounded-lg py-2 px-4 outline-none focus:border-blue-500 focus:ring-blue-500"
+                            onChange={(e) => {
+                                const newValue = e.target.value;
+                                setSelectedOptions(prevState => ({
+                                    ...prevState,
+                                    [index]: newValue
+                                }));
+                            }}
+                            name={`${index}`}
+                        >
+                            <option value="">Select...</option>
+                            {getUniqueValues(index).map((value, idx) => (
+                                <option key={idx} value={value}>{value}</option>
                             ))}
                         </select>
                     </div>
                 ))}
             </div>
+
+            <button
+                className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg"
+                onClick={handleClassify}
+            >
+                Classify
+            </button>
+
+            {classificationResult && (
+                <div className="my-10">
+                    <p>{classificationResult}</p>
+                </div>
+            )}
         </div>
     );
 }
